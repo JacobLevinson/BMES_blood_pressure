@@ -58,20 +58,32 @@ void pressurize() {
 
 // Knock-based systolic/diastolic detection
 void detectBloodPressure(double pressure, double knock) {
-    static double knockThreshold = 2;  // Tune for your sensor
+    static double knockThreshold = 2;
+    static int noKnockCount = 0;
+    static const int quietWindow = 15;  // ~150ms if using delay(10)
+    static double lastKnockPressure = 0;
 
-    // When knocks first appear → Store systolic pressure.
+    // Detect systolic
     if (!systolicDetected && knock > knockThreshold) {
         systolicPressure = pressure;
         systolicDetected = true;
         Serial.println("Systolic detected!");
     }
 
-    // When knocks disappear → Store diastolic pressure.
-    if (systolicDetected && !diastolicDetected && knock < knockThreshold) {
-        diastolicPressure = pressure;
-        diastolicDetected = true;
-        Serial.println("Diastolic detected!");
+    // Track last knock after systolic
+    if (systolicDetected && knock > knockThreshold) {
+        lastKnockPressure = pressure;
+        noKnockCount = 0;  // Reset quiet counter
+    }
+
+    // Count consecutive quiet samples
+    if (systolicDetected && knock <= knockThreshold) {
+        noKnockCount++;
+        if (!diastolicDetected && noKnockCount >= quietWindow) {
+            diastolicPressure = lastKnockPressure;
+            diastolicDetected = true;
+            Serial.println("Diastolic detected!");
+        }
     }
 }
 
