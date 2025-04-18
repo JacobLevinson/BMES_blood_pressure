@@ -1,3 +1,10 @@
+#include <Wire.h> // Needed for I2C
+#include <SparkFun_MicroPressure.h>
+
+extern double systolicPressure;
+extern double diastolicPressure;
+void findBloodPressure();
+
 // Micropressure setup
 
 SparkFun_MicroPressure mpr; // Use default values with reset and EOC pins unused
@@ -32,6 +39,10 @@ class CommandCallbacks : public NimBLECharacteristicCallbacks {
             String diastolicString = String(diastolicPressure);
             diastolicCharacteristic->setValue(diastolicString.c_str());
             diastolicCharacteristic->notify();
+            Serial.print("Notifying Systolic: ");
+            Serial.println(systolicString);
+            Serial.print("Notifying Diastolic: ");
+            Serial.println(diastolicString);
             Serial.println("Sensor values sent!");
         }
     }
@@ -48,11 +59,16 @@ double diastolicPressure = 0;
 
 // Pre-pressurize the cuff
 void pressurize() {
+  Serial.println("Starting pressurize!");
   digitalWrite(PUMP_SOLENOID_PIN, HIGH);
-  while(mpr.readPressure(INHG) / 25.4 < 165){
-    // Do nothing
+  double currentPressure = mpr.readPressure(INHG);
+  while(currentPressure / 25.4 < 165){
+    Serial.println(currentPressure);
+    currentPressure = mpr.readPressure(INHG);
+    delay(100);
   }
   digitalWrite(PUMP_SOLENOID_PIN, LOW); // Allow to repressurize
+  Serial.println("Target pressure reached.");
   return;
 }
 
@@ -126,6 +142,8 @@ void setup() {
   // Initalize UART, I2C bus, and connect to the micropressure sensor
   Serial.begin(115200);
   Wire.begin();
+  pinMode(PUMP_SOLENOID_PIN, OUTPUT);
+  digitalWrite(PUMP_SOLENOID_PIN, LOW); // Optional: make sure it's off by default
 
   if(!mpr.begin())
   {
@@ -169,6 +187,7 @@ diastolicCharacteristic->setValue("0"); // Default value
 //  Main Blood Pressure Function
 
 void findBloodPressure(){
+  Serial.println("Starting blood pressure measurement...");
   systolicDetected = false;
   diastolicDetected = false;
   pressurize();
